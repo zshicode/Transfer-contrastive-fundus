@@ -1,6 +1,14 @@
-# Transfer contrastive learning for ocular disease diagnosis using fundus images
+# Transfer contrastive learning for ocular disease diagnosis using medical images
 
-This repo proposes a transfer learning framework for ocular disease diagnosis using fundus images. We adopt the foundation model in the field of computer vision, i.e., DINOv2 and DINOv3, for representation learning of fundus images. Each image is compressed to an embedding vector using pretrained DINO model. Then, two embeddings of fundus images from different eyes of one patient are fused using contrastive learning, and focal loss is also adopted to tackle the imbalanced dataset. We also implement a baseline model using LightGBM by simply concatenating left-eye embedding and right-eye embedding as feature vector. This repo evaluates representation learning's capability of pretrained foundation models, and develops a deployable, lightweight transfer learning solution from pretrained foundation models to deliver fast inference and great potential for real‑world computer vision applications.
+This repo proposes a transfer learning framework for ocular disease diagnosis using medical images. Two datasets, ODIR and GOALS, are retrieved from fundus images and OCT respectively. We adopt the foundation model in the field of computer vision, i.e., DINOv2 and DINOv3, for representation learning of medical images.
+
+For ODIR dataset as classification task, each image is compressed to an embedding vector using pretrained DINO model. Two embeddings of fundus images from different eyes of one patient are fused using contrastive learning, and focal loss is also adopted to tackle the imbalanced classification. We also implement a baseline model using LightGBM by simply concatenating left-eye embedding and right-eye embedding as feature vector. 
+
+For GOALS dataset as classification task, one image is randomly masked twice to obtain two masked images for two branches of contrastive framework respectively. 
+
+For GOALS dataset as segmentation task, since DINOv3 not only outputs embedding vector, but also outputs last hidden state, which generates embedding vector for each patch, we implement a patch-representation-patch UNet. The representations learned by UNet are trained to align the representations learned by DINOv3 under a teacher-student framework, and the alignment loss is formed as contrastive learning. 
+
+This repo evaluates representation learning's capability of pretrained foundation models, and develops a deployable, lightweight transfer learning solution from pretrained foundation models to deliver fast inference and great potential for real‑world computer vision applications.
 
 ## Requirements
 
@@ -14,19 +22,38 @@ sklearn==1.8.0
 transformers==5.22.1
 lightgbm==4.6.0
 PIL==12.1.0
+torchvision==0.29.2
 ```
 
 ## Usage
 
 ```
-python main.py --model dinov3
+python odir.py --model dinov3
+python goals.py --model dinov3
 ```
 
-`args.model` can be either DINOv2 or DINOv3.
+Model can be either DINOv2 or DINOv3 for classification, but only DINOv3 for segmentation. `goals.py` runs both of classification and segmentation.
 
 ## Datasets
 
-The details and download links of dataset are in https://github.com/nkicsl/OIA-ODIR. To run the code, please storage the images in `./ODIRImages`, and storage the labels in `label.csv`. The format of `label.csv` is
+### ODIR dataset
+
+The details and download links of ODIR dataset are in https://github.com/nkicsl/OIA-ODIR and https://odir2019.grand-challenge.org/dataset. To run the code, please storage the images in `./ODIRImages`, and storage the labels in `label.csv` of train/val/test set respectively. The directory structure is
+
+```
+ODIRImages
+|---train
+    |---1449_left.jpg
+    |---1449_right.jpg
+    |---...
+    |---labels.csv
+|---val
+    |---...
+|---test
+    |---...
+```
+
+The format of `label.csv` is
 
 ```
 ID,label
@@ -37,28 +64,30 @@ ID,label
 
 Note that the original dataset includes some multi-label samples. To simplify the task, we only select some of single-label samples for experiments.
 
-## Options
+### GOALS dataset
 
-We adopt an argument parser by package  `argparse` in Python, and the options for running code are defined as follow:
+The details and download links of GOALS dataset are in http://hdmilab.cn/ichallenge and https://aistudio.baidu.com/competition/detail/783/0/introduction. To run the code, please storage the images in `./GOALSImages`, and storage the labels in `label.csv` of train/val/test set respectively. The directory structure is
 
-```python
-parser = argparse.ArgumentParser()
-parser.add_argument('--use-cuda', default=False,
-                    help='CUDA training.')
-parser.add_argument('--seed', type=int, default=1, help='Random seed.')
-parser.add_argument('--epochs', type=int, default=100,
-                    help='Number of epochs to train.')
-parser.add_argument('--lr', type=float, default=0.01,
-                    help='Learning rate.')
-parser.add_argument('--wd', type=float, default=1e-5,
-                    help='Weight decay (L2 loss on parameters).')
-parser.add_argument('--c', type=int, default=8,
-                    help='Num of classes')
-parser.add_argument('--d', type=int, default=384,
-                    help='Num of embedding dimension')
-parser.add_argument('--model', type=str, default='dinov2',
-                    help='Model')                   
-
-args = parser.parse_args()
-args.cuda = args.use_cuda and torch.cuda.is_available()
 ```
+GOALSImages
+|---train
+    |---12.png
+    |---12_mask.png
+    |---...
+    |---labels.csv
+|---val
+    |---...
+|---test
+    |---...
+```
+
+The format of `label.csv` is
+
+```
+ID,label
+12,1
+13,0
+...,...
+```
+
+GOALS dataset includes both classification and segmentation tasks. The mask images are labels for segmentation.
